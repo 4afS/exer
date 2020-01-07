@@ -1,17 +1,23 @@
-# exer-go
+# exer
 
 A tool that execute build tool commands.
 
-## Install
-  $ go get github.com/4afs/exer
+## Installation
+```
+$ go get github.com/4afs/exer
+```
 
 ## Usage
 
-  $ exer -run
+```
+$ exer -run
+```
 
 execute run command at the root directory of the project.
 
-  $ exer -build
+```
+$ exer -build
+```
 
 execute build command same as `exer -run`.
 
