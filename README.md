@@ -2,10 +2,18 @@
 
 A tool that execute build tool commands.
 
-## Usage
-- `exer -run` // execute run command at the root directory of the project.
+## Install
+  $ go get github.com/4afs/exer
 
-- `exer -build` // execute build command same as `exer -run`.
+## Usage
+
+  $ exer -run
+
+execute run command at the root directory of the project.
+
+  $ exer -build
+
+execute build command same as `exer -run`.
 
 ## Requirement
 - git
