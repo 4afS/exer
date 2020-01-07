@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/mattn/go-shellwords"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -59,7 +60,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println(success(runCommand))
+		execute(runCommand, path)
 
 	case *buildOption:
 		buildCommand, ok := command["build"]
@@ -68,7 +69,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println(success(buildCommand))
+		execute(buildCommand, path)
 
 	default:
 		flag.Usage()
@@ -81,6 +82,39 @@ func fail(message string) string {
 
 func success(message string) string {
 	return fmt.Sprint("[Success]", message)
+}
+
+func execute(cmdstr string, rootPath string) {
+	cmdl, err := shellwords.Parse(cmdstr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+	}
+
+	var cmd *exec.Cmd
+
+	switch len(cmdl) {
+	case 0:
+		fmt.Fprintln(os.Stderr, fail("unexpected error occured"))
+		os.Exit(1)
+	case 1:
+		cmd = exec.Command(cmdl[0])
+	default:
+		cmd = exec.Command(cmdl[0], cmdl[1:]...)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	currentPath, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, fail("cannot get path to the current directory"))
+		os.Exit(1)
+	}
+
+	os.Chdir(rootPath)
+	cmd.Run()
+	os.Chdir(currentPath)
+
 }
 
 func projectRootPath() (string, error) {
@@ -102,7 +136,7 @@ func findCommands(fileinfos []os.FileInfo) (map[string]string, bool) {
 		"stack.yaml": {"build": "stack build", "run": "stack run"},
 		"cargo.toml": {"build": "cargo build", "run": "cargo run"},
 		".spago":     {"build": "spago build", "run": "spago run"},
-		"elm.json":   {"build": "elm reactor"},
+		"elm.json":   {"run": "elm reactor"},
 		"build.sbt":  {"build": "sbt build", "run": "sbt run"},
 	}
 
