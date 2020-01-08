@@ -3,6 +3,10 @@
 A tool that execute build tool commands.
 
 ## Installation
+### Requirement
+- git
+
+### go get
 ```
 $ go get github.com/4afs/exer
 ```
@@ -21,12 +25,8 @@ $ exer -build
 
 execute build command same as `exer -run`.
 
-## Requirement
-- git
-
 ## Supported languages and build tools
 
 #### Run command
 
 #### Build command
-
