@@ -12,24 +12,27 @@ import (
 
 func usage() {
 	fmt.Printf(`Usage of exer:
-  -build
-      Run a project you're in.
   -run
-      Run a project you're in.
+      Run the project you're in.
+  -build
+      Build the project you're in.
+  -opts string
+      Options to run or build the project.
 `)
 	os.Exit(1)
 }
 
 func main() {
 	var (
-		runOpt   = flag.Bool("run", false, "Run a project you're in.")
-		buildOpt = flag.Bool("build", false, "Run a project you're in.")
+		runF   = flag.Bool("run", false, "Run the project you're in.")
+		buildF = flag.Bool("build", false, "Build the project you're in.")
+		OptsF  = flag.String("opts", "", "Options to run or build the project.")
 	)
 
 	flag.Usage = usage
 	flag.Parse()
 
-	if *runOpt && *buildOpt {
+	if *runF && *buildF {
 		ifFail(fmt.Errorf("select either `run` or `build`"))
 	}
 
@@ -46,21 +49,21 @@ func main() {
 
 	err = nil
 	switch {
-	case *runOpt:
+	case *runF:
 		runCmd, ok := cmd.Run()
 		if !ok {
 			ifFail(fmt.Errorf("run command not found"))
 		}
 
-		err = execute(runCmd, path)
+		err = execute(runCmd, *OptsF, path)
 
-	case *buildOpt:
+	case *buildF:
 		buildCmd, ok := cmd.Build()
 		if !ok {
 			ifFail(fmt.Errorf("build command not found"))
 		}
 
-		err = execute(buildCmd, path)
+		err = execute(buildCmd, *OptsF, path)
 
 	default:
 		flag.Usage()
@@ -76,20 +79,29 @@ func ifFail(e error) {
 	}
 }
 
-func execute(cmdstr string, rootPath string) error {
-	cmds, err := shellwords.Parse(cmdstr)
+func execute(cmdStr, optsStr, rootPath string) error {
+	mainCmd, err := shellwords.Parse(cmdStr)
 	if err != nil {
 		return err
 	}
 
-	var cmd *exec.Cmd
+	opts, err := shellwords.Parse(optsStr)
+	if err != nil {
+		return err
+	}
 
-	switch len(cmds) {
+	var (
+		cmd  *exec.Cmd
+		cmds = make([]string, len(mainCmd)+len(opts))
+	)
+
+	switch len(mainCmd) {
 	case 0:
 		return fmt.Errorf("unexpected command found")
 	case 1:
-		cmd = exec.Command(cmds[0])
+		cmd = exec.Command(mainCmd[0], opts...)
 	default:
+		cmds = append(mainCmd, opts...)
 		cmd = exec.Command(cmds[0], cmds[1:]...)
 	}
 
@@ -102,11 +114,14 @@ func execute(cmdstr string, rootPath string) error {
 	cmd.Stderr = os.Stderr
 
 	os.Chdir(rootPath)
+
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("`%s` command not found", cmdstr)
+		return fmt.Errorf("`%s %s`: error occured", cmdStr, optsStr)
 	}
-	defer os.Chdir(currentPath)
+
+	os.Chdir(currentPath)
+
 	return nil
 }
 
@@ -143,12 +158,11 @@ func (cmd Cmd) Build() (string, bool) {
 
 func findCmd(fileinfos []os.FileInfo) (Cmd, bool) {
 	var cmds = map[string]Cmd{
-		"stack.yaml":   {build: "stack build", run: "stack run"},
-		"Cargo.toml":   {build: "cargo build", run: "cargo run"},
-		".spago":       {build: "spago build", run: "spago run"},
-		"elm.json":     {run: "elm reactor"},
-		"build.sbt":    {build: "sbt build", run: "sbt run"},
-		"build.gradle": {build: "gradle build", run: "gradle run"},
+		"stack.yaml": {build: "stack build", run: "stack run"},
+		"Cargo.toml": {build: "cargo build", run: "cargo run"},
+		".spago":     {build: "spago build", run: "spago run"},
+		"elm.json":   {run: "elm reactor"},
+		"build.sbt":  {build: "sbt build", run: "sbt run"},
 	}
 
 	for _, f := range fileinfos {
