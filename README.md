@@ -27,6 +27,10 @@ execute build command same as `exer -run`.
 
 ## Supported languages and build tools
 
-#### Run command
-
-#### Build command
+| Build tool | Match | Run | Build |
+|:--|:--|:--|:--|
+| Stack | stack.yaml | `stack run` | `stack build` |
+| Cargo | Cargo.toml | `cargo run` | `cargo build` |
+| Spago | .spago | `spago run` | `spago build` |
+| Elm | elm.json | - | `elm reactor` |
+| sbt | build.sbt | `sbt run` | `sbt build` |
