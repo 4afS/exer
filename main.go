@@ -10,11 +10,6 @@ import (
 	"strings"
 )
 
-var (
-	runOption   = flag.Bool("run", false, "Run a project you're in.")
-	buildOption = flag.Bool("build", false, "Run a project you're in.")
-)
-
 func usage() {
 	fmt.Printf(`Usage of exer:
   -build
@@ -26,125 +21,141 @@ func usage() {
 }
 
 func main() {
+	var (
+		runOpt   = flag.Bool("run", false, "Run a project you're in.")
+		buildOpt = flag.Bool("build", false, "Run a project you're in.")
+	)
+
 	flag.Usage = usage
 	flag.Parse()
 
-	if *runOption && *buildOption {
-		fmt.Fprintln(os.Stderr, fail("specify only `run` or `build`"))
-		os.Exit(1)
+	if *runOpt && *buildOpt {
+		ifFail(fmt.Errorf("select either `run` or `build`"))
 	}
 
 	path, err := projectRootPath()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, fail(err.Error()))
-		os.Exit(1)
-	}
+	ifFail(err)
 
 	fileinfos, err := ioutil.ReadDir(path)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, fail(err.Error()))
-		os.Exit(1)
-	}
+	ifFail(err)
 
-	command, ok := findCommands(fileinfos)
+	cmd, ok := findCmd(fileinfos)
 	if !ok {
-		fmt.Fprintln(os.Stderr, fail("this language not supported"))
-		os.Exit(1)
+		ifFail(fmt.Errorf("this language not supported"))
 	}
 
+	err = nil
 	switch {
-	case *runOption:
-		runCommand, ok := command["run"]
+	case *runOpt:
+		runCmd, ok := cmd.Run()
 		if !ok {
-			fmt.Fprintln(os.Stderr, fail("run command not found"))
-			os.Exit(1)
+			ifFail(fmt.Errorf("run command not found"))
 		}
 
-		execute(runCommand, path)
+		err = execute(runCmd, path)
 
-	case *buildOption:
-		buildCommand, ok := command["build"]
+	case *buildOpt:
+		buildCmd, ok := cmd.Build()
 		if !ok {
-			fmt.Fprintln(os.Stderr, fail("build command not found"))
-			os.Exit(1)
+			ifFail(fmt.Errorf("build command not found"))
 		}
 
-		execute(buildCommand, path)
+		err = execute(buildCmd, path)
 
 	default:
 		flag.Usage()
 	}
+
+	ifFail(err)
 }
 
-func fail(message string) string {
-	return fmt.Sprint("exer: ", message)
+func ifFail(e error) {
+	if e != nil {
+		fmt.Fprintf(os.Stderr, "exer: %s\n", e.Error())
+		os.Exit(1)
+	}
 }
 
-func success(message string) string {
-	return fmt.Sprint("[Success]", message)
-}
-
-func execute(cmdstr string, rootPath string) {
-	cmdl, err := shellwords.Parse(cmdstr)
+func execute(cmdstr string, rootPath string) error {
+	cmds, err := shellwords.Parse(cmdstr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		return err
 	}
 
 	var cmd *exec.Cmd
 
-	switch len(cmdl) {
+	switch len(cmds) {
 	case 0:
-		fmt.Fprintln(os.Stderr, fail("unexpected error occured"))
-		os.Exit(1)
+		return fmt.Errorf("unexpected command found")
 	case 1:
-		cmd = exec.Command(cmdl[0])
+		cmd = exec.Command(cmds[0])
 	default:
-		cmd = exec.Command(cmdl[0], cmdl[1:]...)
+		cmd = exec.Command(cmds[0], cmds[1:]...)
+	}
+
+	currentPath, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("cannot get path to the current directory")
 	}
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	currentPath, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, fail("cannot get path to the current directory"))
-		os.Exit(1)
-	}
-
 	os.Chdir(rootPath)
-	cmd.Run()
-	os.Chdir(currentPath)
-
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("`%s` command not found", cmdstr)
+	}
+	defer os.Chdir(currentPath)
+	return nil
 }
 
 func projectRootPath() (string, error) {
 	var (
-		cmd        = "git"
-		cmdOptions = []string{"rev-parse", "--show-toplevel"}
+		cmd     = "git"
+		cmdOpts = []string{"rev-parse", "--show-toplevel"}
 	)
 
-	result, err := exec.Command(cmd, cmdOptions...).CombinedOutput()
+	_, err := exec.LookPath(cmd)
+	if err != nil {
+		return "", fmt.Errorf("git not installed")
+	}
+
+	result, err := exec.Command(cmd, cmdOpts...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf(".git directory not found")
 	}
 
-	return strings.TrimRight(string(result), "\n"), err
+	return strings.TrimRight(string(result), "\n"), nil
 }
 
-func findCommands(fileinfos []os.FileInfo) (map[string]string, bool) {
-	commands := map[string]map[string]string{
-		"stack.yaml": {"build": "stack build", "run": "stack run"},
-		"cargo.toml": {"build": "cargo build", "run": "cargo run"},
-		".spago":     {"build": "spago build", "run": "spago run"},
-		"elm.json":   {"run": "elm reactor"},
-		"build.sbt":  {"build": "sbt build", "run": "sbt run"},
+type Cmd struct {
+	build, run string
+}
+
+func (cmd Cmd) Run() (string, bool) {
+	return cmd.run, cmd.run != ""
+}
+
+func (cmd Cmd) Build() (string, bool) {
+	return cmd.build, cmd.build != ""
+}
+
+func findCmd(fileinfos []os.FileInfo) (Cmd, bool) {
+	var cmds = map[string]Cmd{
+		"stack.yaml":   {build: "stack build", run: "stack run"},
+		"Cargo.toml":   {build: "cargo build", run: "cargo run"},
+		".spago":       {build: "spago build", run: "spago run"},
+		"elm.json":     {run: "elm reactor"},
+		"build.sbt":    {build: "sbt build", run: "sbt run"},
+		"build.gradle": {build: "gradle build", run: "gradle run"},
 	}
 
-	for _, fileinfo := range fileinfos {
-		if command, ok := commands[fileinfo.Name()]; ok {
-			return command, true
+	for _, f := range fileinfos {
+		if cmd, ok := cmds[f.Name()]; ok {
+			return cmd, true
 		}
 	}
 
-	return nil, false
+	return Cmd{}, false
 }
