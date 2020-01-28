@@ -10,23 +10,29 @@ import (
 	"strings"
 )
 
+var (
+	runUsage   = "Run the project."
+	buildUsage = "Build the project"
+	optsUsage  = "Options to run or build the project."
+)
+
 func usage() {
 	fmt.Printf(`Usage of exer:
   -run
-      Run the project you're in.
+      %s
   -build
-      Build the project you're in.
+      %s
   -opts string
-      Options to run or build the project.
-`)
+      %s
+`, runUsage, buildUsage, optsUsage)
 	os.Exit(1)
 }
 
 func main() {
 	var (
-		runF   = flag.Bool("run", false, "Run the project you're in.")
-		buildF = flag.Bool("build", false, "Build the project you're in.")
-		OptsF  = flag.String("opts", "", "Options to run or build the project.")
+		runF   = flag.Bool("run", false, runUsage)
+		buildF = flag.Bool("build", false, buildUsage)
+		OptsF  = flag.String("opts", "", optsUsage)
 	)
 
 	flag.Usage = usage
