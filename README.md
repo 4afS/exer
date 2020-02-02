@@ -32,5 +32,5 @@ execute build command same as `exer -run`.
 | Stack | stack.yaml | `stack run` | `stack build` |
 | Cargo | Cargo.toml | `cargo run` | `cargo build` |
 | Spago | .spago | `spago run` | `spago build` |
-| Elm | elm.json | - | `elm reactor` |
+| Elm | elm.json | `elm reactor` | - |
 | sbt | build.sbt | `sbt run` | `sbt build` |
